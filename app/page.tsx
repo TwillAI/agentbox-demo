@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { TriangleAlert, Boxes, Bot, Loader2, Plus, Star } from "lucide-react";
+import {
+  TriangleAlert,
+  Boxes,
+  Bot,
+  Plus,
+  Star,
+  Trash2,
+  ChevronDown,
+  Circle,
+} from "lucide-react";
 import {
   Conversation,
   ConversationContent,
@@ -44,7 +53,11 @@ import {
   type HarnessName,
 } from "@/lib/harness-catalog";
 import type { SandboxProviderName } from "agentbox-sdk";
-import { useAgentChat, type ChatMessage } from "@/hooks/use-agent-chat";
+import {
+  useAgentChat,
+  type ChatMessage,
+  type QueuedMessage,
+} from "@/hooks/use-agent-chat";
 import { cn } from "@/lib/utils";
 
 type ChatStatus = React.ComponentProps<typeof PromptInputSubmit>["status"];
@@ -62,7 +75,8 @@ export default function HomePage() {
   const [warmupError, setWarmupError] = React.useState<string | null>(null);
   const [warmupToken, setWarmupToken] = React.useState(0);
 
-  const { messages, isRunning, send, stop, clear } = useAgentChat();
+  const { messages, queued, isRunning, enqueue, removeQueued, stop, clear } =
+    useAgentChat();
   const hasMessages = messages.length > 0;
 
   React.useEffect(() => {
@@ -143,9 +157,9 @@ export default function HomePage() {
           filename: f.filename,
         }));
       if (!text && files.length === 0) return;
-      await send({ input: text, harness, model, sandboxProvider, files });
+      await enqueue({ input: text, harness, model, sandboxProvider, files });
     },
-    [harness, model, sandboxProvider, send],
+    [harness, model, sandboxProvider, enqueue],
   );
 
   const status: ChatStatus = isRunning ? "streaming" : undefined;
@@ -159,10 +173,19 @@ export default function HomePage() {
       harness={harness}
       model={model}
       setModel={setModel}
-      placeholder={`Ask ${HARNESS_LABELS[harness]} to do something inside the sandbox...`}
+      placeholder={
+        isRunning
+          ? "Queue a follow-up message..."
+          : `Ask ${HARNESS_LABELS[harness]} to do something inside the sandbox...`
+      }
       disabled={warmupState !== "ready"}
     />
   );
+
+  const queuedList =
+    queued.length > 0 ? (
+      <QueuedMessagesList queued={queued} onRemove={removeQueued} />
+    ) : null;
 
   return (
     <div className="bg-background flex h-dvh min-h-0 w-full flex-col">
@@ -184,6 +207,7 @@ export default function HomePage() {
               </ConversationContent>
               <ConversationScrollButton />
             </Conversation>
+            {queuedList}
             {promptInput}
           </>
         ) : (
@@ -324,17 +348,14 @@ function ComposeView({
     <div className="flex flex-1 flex-col items-center justify-center gap-5">
       <div className="flex flex-col items-center gap-3 text-center">
         {warmupState === "warming" ? (
-          <>
-            <Loader2 className="text-muted-foreground size-6 animate-spin" />
-            <div className="space-y-1">
-              <Shimmer as="h1" className="text-base font-medium tracking-tight">
-                {`Warming up the ${sandboxLabel} sandbox...`}
-              </Shimmer>
-              <p className="text-muted-foreground text-xs">
-                This can take up to a minute on cold starts.
-              </p>
-            </div>
-          </>
+          <div className="space-y-1">
+            <Shimmer as="h1" className="text-base font-medium tracking-tight">
+              {`Warming up the ${sandboxLabel} sandbox...`}
+            </Shimmer>
+            <p className="text-muted-foreground text-xs">
+              This can take up to a minute on cold starts.
+            </p>
+          </div>
         ) : warmupState === "error" ? (
           <>
             <span className="bg-destructive/10 text-destructive flex size-12 items-center justify-center rounded-full">
@@ -591,5 +612,89 @@ function ChatMessageView({ message }: { message: ChatMessage }) {
         )}
       </MessageContent>
     </Message>
+  );
+}
+
+interface QueuedMessagesListProps {
+  queued: QueuedMessage[];
+  onRemove: (id: string) => void;
+}
+
+function QueuedMessagesList({ queued, onRemove }: QueuedMessagesListProps) {
+  const [open, setOpen] = React.useState(true);
+
+  return (
+    <div className="border-border bg-muted/30 flex flex-col overflow-hidden rounded-lg border text-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-left transition-colors"
+        aria-expanded={open}
+      >
+        <ChevronDown
+          className={cn(
+            "size-3.5 transition-transform",
+            !open && "-rotate-90",
+          )}
+        />
+        <span className="text-xs font-medium">
+          {queued.length} Queued
+        </span>
+      </button>
+      {open && (
+        <ul className="border-border flex flex-col border-t">
+          {queued.map((item) => (
+            <QueuedRow key={item.id} item={item} onRemove={onRemove} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+interface QueuedRowProps {
+  item: QueuedMessage;
+  onRemove: (id: string) => void;
+}
+
+function QueuedRow({ item, onRemove }: QueuedRowProps) {
+  const isError = item.status === "error";
+  const attachmentCount = item.files?.length ?? 0;
+  const label =
+    item.text.trim().length > 0
+      ? item.text
+      : attachmentCount > 0
+        ? `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`
+        : "(empty)";
+
+  return (
+    <li
+      className="group hover:bg-muted/60 relative flex items-start gap-2.5 px-3 py-2 transition-colors"
+      title={isError ? item.error : undefined}
+    >
+      <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+        {isError ? (
+          <TriangleAlert className="text-destructive size-3.5" />
+        ) : (
+          <Circle className="text-muted-foreground/70 size-3.5" />
+        )}
+      </span>
+      <span
+        className={cn(
+          "text-foreground min-w-0 flex-1 whitespace-pre-wrap break-words pr-8 text-sm leading-snug",
+          isError && "text-destructive",
+        )}
+      >
+        {label}
+      </span>
+      <button
+        type="button"
+        aria-label="Remove queued message"
+        onClick={() => onRemove(item.id)}
+        className="text-muted-foreground hover:text-foreground absolute right-2 top-1.5 flex size-7 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </li>
   );
 }

@@ -1,9 +1,8 @@
 import {
   Agent,
   type AgentProviderName,
+  type NormalizedAgentEvent,
   type RawAgentEvent,
-  type UserContent,
-  type UserContentPart,
 } from "agentbox-sdk";
 import { z } from "zod";
 import {
@@ -15,15 +14,11 @@ import {
   type SupportedProvider,
 } from "@/lib/sandbox-pool";
 import { HARNESS_MODELS } from "@/lib/harness-catalog";
+import { buildAgentInput, filePartSchema } from "@/lib/chat-input";
+import { registerRun, unregisterRun } from "@/lib/run-registry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const filePartSchema = z.object({
-  url: z.string().min(1),
-  mediaType: z.string().min(1),
-  filename: z.string().optional(),
-});
 
 const bodySchema = z
   .object({
@@ -38,38 +33,6 @@ const bodySchema = z
     message: "Provide input text or at least one file.",
     path: ["input"],
   });
-
-function buildAgentInput(
-  text: string,
-  files: z.infer<typeof filePartSchema>[] | undefined,
-): UserContent {
-  const trimmed = text.trim();
-  if (!files || files.length === 0) {
-    return trimmed;
-  }
-
-  const parts: UserContentPart[] = [];
-  if (trimmed.length > 0) {
-    parts.push({ type: "text", text: trimmed });
-  }
-  for (const file of files) {
-    if (file.mediaType.startsWith("image/")) {
-      parts.push({
-        type: "image",
-        image: file.url,
-        mediaType: file.mediaType,
-      });
-    } else {
-      parts.push({
-        type: "file",
-        data: file.url,
-        mediaType: file.mediaType,
-        filename: file.filename,
-      });
-    }
-  }
-  return parts;
-}
 
 function writeLine(
   controller: ReadableStreamDefaultController<Uint8Array>,
@@ -132,6 +95,7 @@ export async function POST(req: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let registeredRunId: string | null = null;
       try {
         const sandbox = await getSandbox(sandboxProvider as SupportedProvider);
 
@@ -148,6 +112,12 @@ export async function POST(req: Request) {
           resumeSessionId,
         });
 
+        registeredRunId = run.id;
+        registerRun(run.id, {
+          run,
+          provider: sandboxProvider as SupportedProvider,
+        });
+
         writeLine(controller, encoder, {
           type: "started",
           runId: run.id,
@@ -159,6 +129,24 @@ export async function POST(req: Request) {
         };
         abortSignal.addEventListener("abort", abortHandler);
 
+        // Consume the normalized event stream in parallel so we can surface
+        // `message.injected` to the client as a deterministic signal that the
+        // SDK accepted a queued message and a new assistant turn is starting.
+        const normalizedLoop = (async () => {
+          try {
+            for await (const event of run as AsyncIterable<NormalizedAgentEvent>) {
+              if (event.type === "message.injected") {
+                writeLine(controller, encoder, {
+                  type: "injected",
+                  content: event.content,
+                });
+              }
+            }
+          } catch {
+            // Errors are surfaced via the raw/finished path below.
+          }
+        })();
+
         try {
           for await (const event of run.rawEvents() as AsyncIterable<RawAgentEvent>) {
             writeLine(controller, encoder, {
@@ -168,14 +156,37 @@ export async function POST(req: Request) {
             });
           }
 
-          const result = await run.finished;
-          writeLine(controller, encoder, {
-            type: "done",
-            text: result.text,
-            sessionId: result.sessionId,
-          });
+          try {
+            const result = await run.finished;
+            await normalizedLoop;
+            writeLine(controller, encoder, {
+              type: "done",
+              text: result.text,
+              sessionId: result.sessionId,
+            });
+          } catch (finishedError) {
+            // `run.finished` rejects when the run is aborted (stop button)
+            // or when the provider errors out. The SDK still retains the
+            // captured sessionId on the run, so emit a `done` event with
+            // it whenever available — this lets the next user message
+            // resume the same provider session instead of starting a new
+            // conversation. If no sessionId was ever captured (abort
+            // happened before the provider announced one), fall through
+            // to the error path below.
+            await normalizedLoop.catch(() => undefined);
+            const salvagedSessionId = run.sessionId;
+            if (salvagedSessionId) {
+              writeLine(controller, encoder, {
+                type: "done",
+                sessionId: salvagedSessionId,
+              });
+            } else {
+              throw finishedError;
+            }
+          }
         } finally {
           abortSignal.removeEventListener("abort", abortHandler);
+          await normalizedLoop.catch(() => undefined);
         }
       } catch (error) {
         const message =
@@ -186,6 +197,9 @@ export async function POST(req: Request) {
           // stream may already be closed
         }
       } finally {
+        if (registeredRunId) {
+          unregisterRun(registeredRunId);
+        }
         release();
         try {
           controller.close();
