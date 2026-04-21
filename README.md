@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentBox Demo
 
-## Getting Started
+A minimal Next.js chat UI that showcases the [AgentBox SDK](../openagent). Pick a sandbox provider, a coding-agent harness, and a model, then chat with an agent running inside an isolated cloud sandbox.
 
-First, run the development server:
+- Frontend: [AI Elements](https://skills.sh/vercel/ai-elements) (Vercel) on top of shadcn/ui
+- Backend: Next.js route handler streaming NDJSON events from the AgentBox SDK
+- Log rendering: ClaudeCode/Codex/OpenCode display components ported from Twill
+- Sandboxes: E2B, Modal, Daytona (one shared sandbox per provider for the demo)
+
+> Shared-sandbox warning: for cost reasons this demo reuses a single sandbox per provider across all chats. Anything you type, run, or write to disk can be observed by other users. Do not paste secrets.
+
+## Prerequisites
+
+- Node.js 20+ (`nvm use 20` or newer)
+- pnpm 10+
+- Accounts/keys for the sandbox providers you want to try (E2B / Modal / Daytona)
+- At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+
+## 1. Install demo dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd ../agentbox-demo
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2. Build the sandbox image on each provider
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The image in [`sandbox-image.mjs`](./sandbox-image.mjs) installs `claude-code`, `opencode`, and `codex` CLIs on top of `node:20-bookworm`. You need to build it once per sandbox provider and capture the returned ID into `.env`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# E2B -- prints a template id
+npx agentbox image build --provider e2b --file ./sandbox-image.mjs
 
-## Learn More
+# Modal -- prints a modal image id
+npx agentbox image build --provider modal --file ./sandbox-image.mjs
 
-To learn more about Next.js, take a look at the following resources:
+# Daytona -- prints a snapshot id
+npx agentbox image build --provider daytona --file ./sandbox-image.mjs
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 3. Configure environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Copy [`.env.example`](./.env.example) to `.env` (or extend your existing `.env`) and fill in the keys/IDs. At minimum you need:
 
-## Deploy on Vercel
+- `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY`
+- Provider credentials + image ID for each sandbox you want available:
+  - `E2B_API_KEY` + `E2B_TEMPLATE_ID`
+  - `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` + `MODAL_IMAGE_ID`
+  - `DAYTONA_API_KEY` + `DAYTONA_SNAPSHOT_ID`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 4. Run the demo
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm dev
+# then open http://localhost:3000
+```
+
+## How it works
+
+```
+UI (AI Elements)  ──POST /api/chat NDJSON──▶  Next.js route handler
+                                               │
+                                               ▼
+                                         SandboxPool (singleton)
+                                               │ reuse or boot
+                                               ▼
+                                         Sandbox (per provider)
+                                               ▲
+                                               │ agent.stream()
+                                         AgentBox SDK  ── raw events ──▶  UI
+                                                                          │
+                                                                          ▼
+                                                          AgentJobLogsDisplay
+                                                          (ported from Twill)
+```
+
+- [`lib/sandbox-pool.ts`](./lib/sandbox-pool.ts) keeps one `Sandbox` per provider in a module-level map, health-checks it on reuse (`sandbox.run("true")`), and boots a new one if needed. It also enforces single-flight per provider via an in-memory busy flag and responds 409 when a second chat hits the same provider.
+- [`app/api/chat/route.ts`](./app/api/chat/route.ts) forwards every raw agent event emitted by `agent.stream().rawEvents()` as one line of NDJSON (`{type:"raw", provider, event}`) plus a terminal `{type:"done"}`.
+- [`components/agent-logs/`](./components/agent-logs) contains the ClaudeCode / Codex / OpenCode log-rendering components ported from Twill (same raw-event shape the CLI emits).
+- [`app/page.tsx`](./app/page.tsx) uses AI Elements (`Conversation`, `Message`, `PromptInput`, `Shimmer`, `CodeBlock`) for the chat shell and plugs the ported agent-logs display into `MessageContent`.
+
+## Scripts
+
+```bash
+pnpm dev         # next dev
+pnpm build       # next build
+pnpm start       # next start
+pnpm lint        # eslint
+```
+
+## Known limitations (intentional for a demo)
+
+- No auth / rate limiting / multi-user isolation -- shared sandbox.
+- Chat history is not persisted across refresh.
+- Permission approvals run in `auto` mode.
+- Vercel sandbox provider is not wired up (no credentials in `.env`).
+- AI Elements ships some components whose typings don't match the installed `@base-ui/react`; type check is disabled during `next build` via `typescript.ignoreBuildErrors`. Our own code passes `tsc --noEmit` cleanly.
