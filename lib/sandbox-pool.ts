@@ -16,17 +16,14 @@ interface PoolEntry {
 type Globals = typeof globalThis & {
   __agentboxDemoSandboxPool?: Map<SupportedProvider, PoolEntry>;
   __agentboxDemoPending?: Map<SupportedProvider, Promise<Sandbox>>;
-  __agentboxDemoBusy?: Map<SupportedProvider, boolean>;
 };
 
 const g = globalThis as Globals;
 g.__agentboxDemoSandboxPool ??= new Map();
 g.__agentboxDemoPending ??= new Map();
-g.__agentboxDemoBusy ??= new Map();
 
 const pool = g.__agentboxDemoSandboxPool!;
 const pending = g.__agentboxDemoPending!;
-const busy = g.__agentboxDemoBusy!;
 
 function imageFor(provider: SupportedProvider): string {
   switch (provider) {
@@ -154,20 +151,6 @@ export async function getSandbox(
   } finally {
     pending.delete(provider);
   }
-}
-
-export function tryAcquireSlot(provider: SupportedProvider): boolean {
-  if (busy.get(provider)) return false;
-  busy.set(provider, true);
-  return true;
-}
-
-export function releaseSlot(provider: SupportedProvider): void {
-  busy.set(provider, false);
-}
-
-export function isBusy(provider: SupportedProvider): boolean {
-  return !!busy.get(provider);
 }
 
 export type { SupportedProvider };

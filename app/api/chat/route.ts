@@ -8,9 +8,6 @@ import { z } from "zod";
 import {
   agentEnv,
   getSandbox,
-  isBusy,
-  releaseSlot,
-  tryAcquireSlot,
   type SupportedProvider,
 } from "@/lib/sandbox-pool";
 import { HARNESS_MODELS } from "@/lib/harness-catalog";
@@ -63,33 +60,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (isBusy(sandboxProvider as SupportedProvider)) {
-    return Response.json(
-      {
-        error:
-          "The shared sandbox for this provider is currently busy with another chat. Try again in a few seconds.",
-      },
-      { status: 409 },
-    );
-  }
-
-  if (!tryAcquireSlot(sandboxProvider as SupportedProvider)) {
-    return Response.json(
-      {
-        error:
-          "The shared sandbox for this provider is currently busy with another chat. Try again in a few seconds.",
-      },
-      { status: 409 },
-    );
-  }
-
   const encoder = new TextEncoder();
-  let released = false;
-  const release = () => {
-    if (released) return;
-    released = true;
-    releaseSlot(sandboxProvider as SupportedProvider);
-  };
 
   const abortSignal = req.signal;
 
@@ -200,16 +171,12 @@ export async function POST(req: Request) {
         if (registeredRunId) {
           unregisterRun(registeredRunId);
         }
-        release();
         try {
           controller.close();
         } catch {
           // already closed
         }
       }
-    },
-    cancel() {
-      release();
     },
   });
 
