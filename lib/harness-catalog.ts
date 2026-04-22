@@ -24,12 +24,14 @@ export const SUPPORTED_SANDBOXES: SandboxProviderName[] = [
   "e2b",
   "modal",
   "daytona",
+  "vercel",
 ];
 
 export const SANDBOX_LABELS: Record<string, string> = {
   e2b: "E2B",
   modal: "Modal",
   daytona: "Daytona",
+  vercel: "Vercel",
 };
 
 export function defaultModelFor(harness: HarnessName): string {

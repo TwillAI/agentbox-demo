@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z
   .object({
-    sandboxProvider: z.enum(["e2b", "modal", "daytona"]),
+    sandboxProvider: z.enum(["e2b", "modal", "daytona", "vercel"]),
     harness: z.enum(["claude-code", "opencode", "codex"]),
     model: z.string().min(1),
     input: z.string().max(16_000).default(""),
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
           sandbox,
           cwd: "/workspace",
           approvalMode: "auto",
-          env: agentEnv(),
+          env: agentEnv(harness),
         });
 
         const run = agent.stream({

@@ -109,6 +109,8 @@ type ToolEntry = CommandEntry | McpToolEntry | CollabToolEntry;
 
 const IGNORED_METHODS = new Set<string>([
   "configWarning",
+  "warning",
+  "account/rateLimits/updated",
   "thread/started",
   "thread/status/changed",
   "thread/tokenUsage/updated",

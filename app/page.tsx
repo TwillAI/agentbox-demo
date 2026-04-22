@@ -8,8 +8,7 @@ import {
   Plus,
   Star,
   Trash2,
-  ChevronDown,
-  Circle,
+  ListTodo,
 } from "lucide-react";
 import {
   Conversation,
@@ -37,6 +36,19 @@ import {
   AttachmentRemove,
   Attachments,
 } from "@/components/ai-elements/attachments";
+import {
+  Queue,
+  QueueItem,
+  QueueItemAction,
+  QueueItemActions,
+  QueueItemContent,
+  QueueItemIndicator,
+  QueueList,
+  QueueSection,
+  QueueSectionContent,
+  QueueSectionLabel,
+  QueueSectionTrigger,
+} from "@/components/ai-elements/queue";
 import { SettingPicker } from "@/components/setting-picker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -64,7 +76,7 @@ type ChatStatus = React.ComponentProps<typeof PromptInputSubmit>["status"];
 
 export default function HomePage() {
   const [sandboxProvider, setSandboxProvider] =
-    React.useState<SandboxProviderName>("e2b");
+    React.useState<SandboxProviderName>("vercel");
   const [harness, setHarness] = React.useState<HarnessName>("claude-code");
   const [model, setModel] = React.useState<string>(
     defaultModelFor("claude-code"),
@@ -176,7 +188,7 @@ export default function HomePage() {
       placeholder={
         isRunning
           ? "Queue a follow-up message..."
-          : `Ask ${HARNESS_LABELS[harness]} to do something inside the sandbox...`
+          : `Ask ${HARNESS_LABELS[harness]} to do something inside the ${SANDBOX_LABELS[sandboxProvider] ?? sandboxProvider} sandbox...`
       }
       disabled={warmupState !== "ready"}
     />
@@ -261,7 +273,7 @@ function Header({ showNewChat, onNewChat, disabled }: HeaderProps) {
         </div>
         <div className="flex items-center gap-2">
           <a
-            href="https://github.com/TwillAI/agentbox-sdk-demo"
+            href="https://github.com/TwillAI/agentbox-demo"
             target="_blank"
             rel="noreferrer"
             className={buttonVariants({
@@ -416,11 +428,25 @@ function PromptInputCard({
   placeholder,
   disabled,
 }: PromptInputCardProps) {
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Focus the textarea once it becomes enabled (e.g. after sandbox warmup)
+  // and whenever a run finishes so the user can keep typing.
+  React.useEffect(() => {
+    if (disabled || isRunning) return;
+    textareaRef.current?.focus();
+  }, [disabled, isRunning]);
+
   return (
     <PromptInput multiple globalDrop onSubmit={onSubmit}>
       <PromptInputAttachmentsDisplay />
       <PromptInputBody>
-        <PromptInputTextarea placeholder={placeholder} disabled={disabled} />
+        <PromptInputTextarea
+          ref={textareaRef}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoFocus
+        />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools className="flex-wrap gap-0">
@@ -621,34 +647,25 @@ interface QueuedMessagesListProps {
 }
 
 function QueuedMessagesList({ queued, onRemove }: QueuedMessagesListProps) {
-  const [open, setOpen] = React.useState(true);
-
   return (
-    <div className="border-border bg-muted/30 flex flex-col overflow-hidden rounded-lg border text-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-left transition-colors"
-        aria-expanded={open}
-      >
-        <ChevronDown
-          className={cn(
-            "size-3.5 transition-transform",
-            !open && "-rotate-90",
-          )}
-        />
-        <span className="text-xs font-medium">
-          {queued.length} Queued
-        </span>
-      </button>
-      {open && (
-        <ul className="border-border flex flex-col border-t">
-          {queued.map((item) => (
-            <QueuedRow key={item.id} item={item} onRemove={onRemove} />
-          ))}
-        </ul>
-      )}
-    </div>
+    <Queue>
+      <QueueSection defaultOpen>
+        <QueueSectionTrigger>
+          <QueueSectionLabel
+            count={queued.length}
+            label="Queued"
+            icon={<ListTodo className="size-4" />}
+          />
+        </QueueSectionTrigger>
+        <QueueSectionContent>
+          <QueueList>
+            {queued.map((item) => (
+              <QueuedRow key={item.id} item={item} onRemove={onRemove} />
+            ))}
+          </QueueList>
+        </QueueSectionContent>
+      </QueueSection>
+    </Queue>
   );
 }
 
@@ -668,33 +685,25 @@ function QueuedRow({ item, onRemove }: QueuedRowProps) {
         : "(empty)";
 
   return (
-    <li
-      className="group hover:bg-muted/60 relative flex items-start gap-2.5 px-3 py-2 transition-colors"
-      title={isError ? item.error : undefined}
-    >
-      <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+    <QueueItem title={isError ? item.error : undefined}>
+      <div className="flex items-start gap-2">
         {isError ? (
-          <TriangleAlert className="text-destructive size-3.5" />
+          <TriangleAlert className="text-destructive mt-0.5 size-3 shrink-0" />
         ) : (
-          <Circle className="text-muted-foreground/70 size-3.5" />
+          <QueueItemIndicator />
         )}
-      </span>
-      <span
-        className={cn(
-          "text-foreground min-w-0 flex-1 whitespace-pre-wrap break-words pr-8 text-sm leading-snug",
-          isError && "text-destructive",
-        )}
-      >
-        {label}
-      </span>
-      <button
-        type="button"
-        aria-label="Remove queued message"
-        onClick={() => onRemove(item.id)}
-        className="text-muted-foreground hover:text-foreground absolute right-2 top-1.5 flex size-7 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <Trash2 className="size-3.5" />
-      </button>
-    </li>
+        <QueueItemContent className={cn(isError && "text-destructive")}>
+          {label}
+        </QueueItemContent>
+        <QueueItemActions>
+          <QueueItemAction
+            aria-label="Remove queued message"
+            onClick={() => onRemove(item.id)}
+          >
+            <Trash2 className="size-3.5" />
+          </QueueItemAction>
+        </QueueItemActions>
+      </div>
+    </QueueItem>
   );
 }

@@ -1,12 +1,13 @@
 import "server-only";
 import {
   Sandbox,
+  collectAllAgentReservedPorts,
   type SandboxOptions,
   type SandboxProviderName,
 } from "agentbox-sdk";
 import ms from "ms";
 
-type SupportedProvider = "e2b" | "modal" | "daytona";
+type SupportedProvider = "e2b" | "modal" | "daytona" | "vercel";
 
 interface PoolEntry {
   sandbox: Sandbox;
@@ -54,10 +55,20 @@ function imageFor(provider: SupportedProvider): string {
       }
       return v;
     }
+    case "vercel": {
+      // Vercel ignores SandboxOptionsBase.image — provisioning uses
+      // provider.snapshotId instead. Snapshot gating happens in buildOptions
+      // and in /api/config. This branch exists only for exhaustiveness.
+      throw new Error(
+        "imageFor() should not be called for the vercel provider — use provider.snapshotId instead.",
+      );
+    }
   }
 }
 
-export function agentEnv(): Record<string, string> {
+type AgentHarness = "claude-code" | "opencode" | "codex";
+
+export function agentEnv(harness?: AgentHarness): Record<string, string> {
   const env: Record<string, string> = {};
   if (process.env.ANTHROPIC_API_KEY) {
     env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -65,15 +76,26 @@ export function agentEnv(): Record<string, string> {
   if (process.env.OPENAI_API_KEY) {
     env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   }
+  const proxyUrl = process.env.LLM_PROXY_URL?.replace(/\/+$/, "");
+  if (proxyUrl) {
+    // opencode expects the Anthropic base URL to point at a root that hosts
+    // `/v1/messages` directly, so the proxy must be exposed as `${proxy}/v1`.
+    // Other harnesses (claude-code, codex) use our `/anthropic` passthrough.
+    env.ANTHROPIC_BASE_URL =
+      harness === "opencode" ? `${proxyUrl}/v1` : `${proxyUrl}/anthropic`;
+    env.OPENAI_BASE_URL = proxyUrl;
+  }
   return env;
 }
 
 function buildOptions<P extends SupportedProvider>(
   provider: P,
 ): SandboxOptions<P> {
+  // `image` intentionally omitted here — the Vercel adapter ignores
+  // `SandboxOptionsBase.image` and provisions from `provider.snapshotId`
+  // instead. Providers that do use images add it in their branch below.
   const base = {
     workingDir: "/workspace",
-    image: imageFor(provider),
     env: agentEnv(),
     idleTimeoutMs: ms("1h"),
     tags: { app: "agentbox-demo" },
@@ -82,6 +104,7 @@ function buildOptions<P extends SupportedProvider>(
   if (provider === "modal") {
     return {
       ...base,
+      image: imageFor(provider),
       provider: {
         appName: process.env.MODAL_APP_NAME,
         tokenId: process.env.MODAL_TOKEN_ID,
@@ -93,6 +116,7 @@ function buildOptions<P extends SupportedProvider>(
   if (provider === "e2b") {
     return {
       ...base,
+      image: imageFor(provider),
       provider: { apiKey: process.env.E2B_API_KEY },
     } as SandboxOptions<P>;
   }
@@ -100,7 +124,27 @@ function buildOptions<P extends SupportedProvider>(
   if (provider === "daytona") {
     return {
       ...base,
+      image: imageFor(provider),
       provider: { apiKey: process.env.DAYTONA_API_KEY },
+    } as SandboxOptions<P>;
+  }
+
+  if (provider === "vercel") {
+    return {
+      ...base,
+      provider: {
+        token: process.env.VERCEL_TOKEN,
+        teamId: process.env.VERCEL_TEAM_ID,
+        projectId: process.env.VERCEL_PROJECT_ID,
+        snapshotId: process.env.VERCEL_SNAPSHOT_ID,
+        // Vercel requires ports at create time (no runtime openPort);
+        // pre-declare every harness's reserved port so switching harnesses
+        // on the same warm sandbox never loses reachability.
+        ports: collectAllAgentReservedPorts(),
+        ...(process.env.VERCEL_PROTECTION_BYPASS
+          ? { protectionBypass: process.env.VERCEL_PROTECTION_BYPASS }
+          : {}),
+      },
     } as SandboxOptions<P>;
   }
 

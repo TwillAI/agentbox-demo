@@ -15,6 +15,12 @@ export async function GET() {
       process.env.MODAL_IMAGE_ID ?? process.env.OPENAGENT_MODAL_IMAGE,
     ),
     daytona: Boolean(process.env.DAYTONA_SNAPSHOT_ID),
+    vercel: Boolean(
+      process.env.VERCEL_TOKEN &&
+        process.env.VERCEL_TEAM_ID &&
+        process.env.VERCEL_PROJECT_ID &&
+        process.env.VERCEL_SNAPSHOT_ID,
+    ),
   };
 
   return Response.json({

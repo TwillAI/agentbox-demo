@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  sandboxProvider: z.enum(["e2b", "modal", "daytona"]),
+  sandboxProvider: z.enum(["e2b", "modal", "daytona", "vercel"]),
 });
 
 export async function POST(req: Request) {

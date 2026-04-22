@@ -226,8 +226,21 @@ export function useAgentChat() {
                 events: [],
                 status: "streaming",
               };
+              const previousAssistantId = activeAssistantIdRef.current;
               activeAssistantIdRef.current = newAssistant.id;
-              setMessages((prev) => [...prev, newUser, newAssistant]);
+              setMessages((prev) => {
+                // Close out the prior assistant turn so its "Running" shimmer
+                // stops and any in-flight tool rows settle into their final
+                // state. Subsequent events go to the new assistant bubble.
+                const closed = previousAssistantId
+                  ? updateMessage(prev, previousAssistantId, (m) =>
+                      m.status === "streaming" || m.status === "pending"
+                        ? { status: "done" }
+                        : {},
+                    )
+                  : prev;
+                return [...closed, newUser, newAssistant];
+              });
             } else if (payload.type === "done") {
               if (payload.sessionId) {
                 sessionIdRef.current = payload.sessionId;

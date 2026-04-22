@@ -5,7 +5,7 @@ A minimal Next.js chat UI that showcases the [AgentBox SDK](../openagent). Pick 
 - Frontend: [AI Elements](https://skills.sh/vercel/ai-elements) (Vercel) on top of shadcn/ui
 - Backend: Next.js route handler streaming NDJSON events from the AgentBox SDK
 - Log rendering: ClaudeCode/Codex/OpenCode display components ported from Twill
-- Sandboxes: E2B, Modal, Daytona (one shared sandbox per provider for the demo)
+- Sandboxes: E2B, Modal, Daytona, Vercel (one shared sandbox per provider for the demo)
 
 > Shared-sandbox warning: for cost reasons this demo reuses a single sandbox per provider across all chats. Anything you type, run, or write to disk can be observed by other users. Do not paste secrets.
 
@@ -13,7 +13,7 @@ A minimal Next.js chat UI that showcases the [AgentBox SDK](../openagent). Pick 
 
 - Node.js 20+ (`nvm use 20` or newer)
 - pnpm 10+
-- Accounts/keys for the sandbox providers you want to try (E2B / Modal / Daytona)
+- Accounts/keys for the sandbox providers you want to try (E2B / Modal / Daytona / Vercel)
 - At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
 
 ## 1. Install demo dependencies
@@ -38,6 +38,20 @@ npx agentbox image build --provider modal --file ./sandbox-image.mjs
 npx agentbox image build --provider daytona --file ./sandbox-image.mjs
 ```
 
+> Vercel is not supported by `agentbox image build`. Vercel sandboxes use
+> runtime snapshots instead. A small helper script is included for this:
+>
+> ```bash
+> # Node 20.6+ (for --env-file). VERCEL_TOKEN, VERCEL_TEAM_ID, and
+> # VERCEL_PROJECT_ID must already be set in .env.
+> node --env-file=.env build-vercel-snapshot.mjs
+> ```
+>
+> It boots a bare `node24` Vercel sandbox, `sudo npm i -g` the three
+> harness CLIs, calls `sandbox.snapshot()`, prints the resulting id, and
+> tears the source sandbox down. Paste the printed id into
+> `VERCEL_SNAPSHOT_ID` in `.env`.
+
 ## 3. Configure environment
 
 Copy [`.env.example`](./.env.example) to `.env` (or extend your existing `.env`) and fill in the keys/IDs. At minimum you need:
@@ -47,6 +61,7 @@ Copy [`.env.example`](./.env.example) to `.env` (or extend your existing `.env`)
   - `E2B_API_KEY` + `E2B_TEMPLATE_ID`
   - `MODAL_TOKEN_ID` + `MODAL_TOKEN_SECRET` + `MODAL_IMAGE_ID`
   - `DAYTONA_API_KEY` + `DAYTONA_SNAPSHOT_ID`
+  - `VERCEL_TOKEN` + `VERCEL_TEAM_ID` + `VERCEL_PROJECT_ID` + `VERCEL_SNAPSHOT_ID` (optional: `VERCEL_PROTECTION_BYPASS`)
 
 ## 4. Run the demo
 
@@ -93,5 +108,4 @@ pnpm lint        # eslint
 - No auth / rate limiting / multi-user isolation -- shared sandbox.
 - Chat history is not persisted across refresh.
 - Permission approvals run in `auto` mode.
-- Vercel sandbox provider is not wired up (no credentials in `.env`).
 - AI Elements ships some components whose typings don't match the installed `@base-ui/react`; type check is disabled during `next build` via `typescript.ignoreBuildErrors`. Our own code passes `tsc --noEmit` cleanly.
