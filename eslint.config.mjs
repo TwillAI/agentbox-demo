@@ -17,6 +17,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored AI Elements components target a different @base-ui/react major
+    // than the one installed via shadcn. They ship with their own typecheck
+    // and lint noise; each file also carries a `// @ts-nocheck` pragma so the
+    // rest of the codebase can still be strictly typechecked at build time.
+    "components/ai-elements/**",
   ]),
 ]);
 

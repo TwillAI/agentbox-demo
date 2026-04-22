@@ -36,8 +36,8 @@ importers:
         specifier: ^12.10.2
         version: 12.10.2(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       agentbox-sdk:
-        specifier: file:../openagent
-        version: file:../openagent
+        specifier: ^0.1.1
+        version: 0.1.1
       ai:
         specifier: ^6.0.168
         version: 6.0.168(zod@4.3.6)
@@ -2211,8 +2211,8 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  agentbox-sdk@file:../openagent:
-    resolution: {directory: ../openagent, type: directory}
+  agentbox-sdk@0.1.1:
+    resolution: {integrity: sha512-iNeTlZ1Uf16TTnsZi5TP/fpfRRMRLDgQmYQKllNavOnkbtPsjVMuw871Mm5urHQ0xA1Cs8Wk8bX5q6vcX3jkNQ==}
     engines: {bun: '>=1.1.0', node: '>=20.0.0'}
     hasBin: true
 
@@ -8185,7 +8185,7 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  agentbox-sdk@file:../openagent:
+  agentbox-sdk@0.1.1:
     dependencies:
       '@daytonaio/sdk': 0.161.0(ws@8.20.0)
       '@vercel/sandbox': 2.0.0-beta.13
