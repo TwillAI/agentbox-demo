@@ -1,3 +1,4 @@
+import { SandboxProvider } from "agentbox-sdk";
 import {
   HARNESSES,
   HARNESS_LABELS,
@@ -10,12 +11,12 @@ export const runtime = "nodejs";
 
 export async function GET() {
   const imagesConfigured = {
-    e2b: Boolean(process.env.E2B_TEMPLATE_ID),
-    modal: Boolean(
+    [SandboxProvider.E2B]: Boolean(process.env.E2B_TEMPLATE_ID),
+    [SandboxProvider.Modal]: Boolean(
       process.env.MODAL_IMAGE_ID ?? process.env.OPENAGENT_MODAL_IMAGE,
     ),
-    daytona: Boolean(process.env.DAYTONA_SNAPSHOT_ID),
-    vercel: Boolean(
+    [SandboxProvider.Daytona]: Boolean(process.env.DAYTONA_SNAPSHOT_ID),
+    [SandboxProvider.Vercel]: Boolean(
       process.env.VERCEL_TOKEN &&
         process.env.VERCEL_TEAM_ID &&
         process.env.VERCEL_PROJECT_ID &&

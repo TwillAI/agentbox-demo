@@ -10,7 +10,11 @@ import {
   getSandbox,
   type SupportedProvider,
 } from "@/lib/sandbox-pool";
-import { HARNESS_MODELS } from "@/lib/harness-catalog";
+import {
+  HARNESSES,
+  HARNESS_MODELS,
+  SUPPORTED_SANDBOXES,
+} from "@/lib/harness-catalog";
 import { buildAgentInput, filePartSchema } from "@/lib/chat-input";
 import { registerRun, unregisterRun } from "@/lib/run-registry";
 
@@ -19,8 +23,8 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z
   .object({
-    sandboxProvider: z.enum(["e2b", "modal", "daytona", "vercel"]),
-    harness: z.enum(["claude-code", "opencode", "codex"]),
+    sandboxProvider: z.enum(SUPPORTED_SANDBOXES as [string, ...string[]]),
+    harness: z.enum(HARNESSES as [string, ...string[]]),
     model: z.string().min(1),
     input: z.string().max(16_000).default(""),
     files: z.array(filePartSchema).max(10).optional(),
@@ -74,7 +78,7 @@ export async function POST(req: Request) {
           sandbox,
           cwd: "/workspace",
           approvalMode: "auto",
-          env: agentEnv(harness),
+          env: agentEnv(harness as AgentProviderName),
         });
 
         const run = agent.stream({

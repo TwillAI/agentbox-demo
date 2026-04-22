@@ -11,7 +11,11 @@
 // throws because Vercel has no prebuilt-image concept. Runtime snapshots
 // are the supported equivalent.
 
-import { Sandbox, collectAllAgentReservedPorts } from "agentbox-sdk";
+import {
+  Sandbox,
+  SandboxProvider,
+  collectAllAgentReservedPorts,
+} from "agentbox-sdk";
 import ms from "ms";
 
 function requireEnv(name) {
@@ -27,7 +31,7 @@ const token = requireEnv("VERCEL_TOKEN");
 const teamId = requireEnv("VERCEL_TEAM_ID");
 const projectId = requireEnv("VERCEL_PROJECT_ID");
 
-const sandbox = new Sandbox("vercel", {
+const sandbox = new Sandbox(SandboxProvider.Vercel, {
   workingDir: "/workspace",
   idleTimeoutMs: ms("45m"),
   tags: {

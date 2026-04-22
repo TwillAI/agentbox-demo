@@ -1,5 +1,7 @@
 "use client";
 
+import { AgentProvider } from "agentbox-sdk/enums";
+import type { AgentProviderName } from "agentbox-sdk";
 import { ClaudeEventsDisplay } from "./ClaudeCode";
 import { CodexEventsDisplay } from "./Codex";
 import { OpenCodeEventsDisplay } from "./OpenCode";
@@ -7,7 +9,7 @@ import type { ClaudeCodeEvent } from "./types/claude-code";
 import type { CodexEvent } from "./types/codex";
 import type { OpenCodeEvent } from "./types/opencode";
 
-export type AgentHarness = "claude-code" | "codex" | "opencode";
+export type AgentHarness = AgentProviderName;
 
 interface Props {
   logs?: ClaudeCodeEvent[] | CodexEvent[] | OpenCodeEvent[] | null;
@@ -21,13 +23,13 @@ export function AgentJobLogsDisplay({
   logs,
   isRunning,
   showLast,
-  provider = "claude-code",
+  provider = AgentProvider.ClaudeCode,
   className,
 }: Props) {
-  const effectiveProvider = provider ?? "claude-code";
+  const effectiveProvider = provider ?? AgentProvider.ClaudeCode;
   const safeLogs = logs ?? [];
 
-  if (effectiveProvider === "codex") {
+  if (effectiveProvider === AgentProvider.Codex) {
     return (
       <CodexEventsDisplay
         events={safeLogs as CodexEvent[]}
@@ -38,7 +40,7 @@ export function AgentJobLogsDisplay({
     );
   }
 
-  if (effectiveProvider === "opencode") {
+  if (effectiveProvider === AgentProvider.OpenCode) {
     return (
       <OpenCodeEventsDisplay
         events={safeLogs as OpenCodeEvent[]}

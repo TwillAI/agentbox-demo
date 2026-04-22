@@ -64,6 +64,7 @@ import {
   providerForModel,
   type HarnessName,
 } from "@/lib/harness-catalog";
+import { AgentProvider, SandboxProvider } from "agentbox-sdk/enums";
 import type { SandboxProviderName } from "agentbox-sdk";
 import {
   useAgentChat,
@@ -76,10 +77,12 @@ type ChatStatus = React.ComponentProps<typeof PromptInputSubmit>["status"];
 
 export default function HomePage() {
   const [sandboxProvider, setSandboxProvider] =
-    React.useState<SandboxProviderName>("vercel");
-  const [harness, setHarness] = React.useState<HarnessName>("claude-code");
+    React.useState<SandboxProviderName>(SandboxProvider.Vercel);
+  const [harness, setHarness] = React.useState<HarnessName>(
+    AgentProvider.ClaudeCode,
+  );
   const [model, setModel] = React.useState<string>(
-    defaultModelFor("claude-code"),
+    defaultModelFor(AgentProvider.ClaudeCode),
   );
   const [warmupState, setWarmupState] = React.useState<
     "idle" | "warming" | "ready" | "error"
@@ -616,7 +619,7 @@ function ChatMessageView({ message }: { message: ChatMessage }) {
       <MessageContent className="w-full max-w-full gap-3">
         {hasEvents && (
           <AgentJobLogsDisplay
-            provider={message.harness ?? "claude-code"}
+            provider={message.harness ?? AgentProvider.ClaudeCode}
             logs={message.events as never}
             isRunning={isRunning}
             className={cn(isRunning && "min-h-4")}
@@ -633,7 +636,7 @@ function ChatMessageView({ message }: { message: ChatMessage }) {
 
         {isRunning && !hasEvents && (
           <Shimmer as="span" className="text-sm">
-            {`Running ${HARNESS_LABELS[message.harness ?? "claude-code"]}`}
+            {`Running ${HARNESS_LABELS[message.harness ?? AgentProvider.ClaudeCode]}`}
           </Shimmer>
         )}
       </MessageContent>

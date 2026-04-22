@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { getSandbox, type SupportedProvider } from "@/lib/sandbox-pool";
+import { SUPPORTED_SANDBOXES } from "@/lib/harness-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  sandboxProvider: z.enum(["e2b", "modal", "daytona", "vercel"]),
+  sandboxProvider: z.enum(SUPPORTED_SANDBOXES as [string, ...string[]]),
 });
 
 export async function POST(req: Request) {

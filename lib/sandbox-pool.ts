@@ -1,13 +1,16 @@
 import "server-only";
 import {
+  AgentProvider,
   Sandbox,
+  SandboxProvider,
   collectAllAgentReservedPorts,
+  type AgentProviderName,
   type SandboxOptions,
   type SandboxProviderName,
 } from "agentbox-sdk";
 import ms from "ms";
 
-type SupportedProvider = "e2b" | "modal" | "daytona" | "vercel";
+type SupportedProvider = Exclude<SandboxProviderName, "local-docker">;
 
 interface PoolEntry {
   sandbox: Sandbox;
@@ -28,7 +31,7 @@ const pending = g.__agentboxDemoPending!;
 
 function imageFor(provider: SupportedProvider): string {
   switch (provider) {
-    case "e2b": {
+    case SandboxProvider.E2B: {
       const v = process.env.E2B_TEMPLATE_ID;
       if (!v) {
         throw new Error(
@@ -37,7 +40,7 @@ function imageFor(provider: SupportedProvider): string {
       }
       return v;
     }
-    case "modal": {
+    case SandboxProvider.Modal: {
       const v = process.env.MODAL_IMAGE_ID ?? process.env.OPENAGENT_MODAL_IMAGE;
       if (!v) {
         throw new Error(
@@ -46,7 +49,7 @@ function imageFor(provider: SupportedProvider): string {
       }
       return v;
     }
-    case "daytona": {
+    case SandboxProvider.Daytona: {
       const v = process.env.DAYTONA_SNAPSHOT_ID;
       if (!v) {
         throw new Error(
@@ -55,7 +58,7 @@ function imageFor(provider: SupportedProvider): string {
       }
       return v;
     }
-    case "vercel": {
+    case SandboxProvider.Vercel: {
       // Vercel ignores SandboxOptionsBase.image — provisioning uses
       // provider.snapshotId instead. Snapshot gating happens in buildOptions
       // and in /api/config. This branch exists only for exhaustiveness.
@@ -66,9 +69,7 @@ function imageFor(provider: SupportedProvider): string {
   }
 }
 
-type AgentHarness = "claude-code" | "opencode" | "codex";
-
-export function agentEnv(harness?: AgentHarness): Record<string, string> {
+export function agentEnv(harness?: AgentProviderName): Record<string, string> {
   const env: Record<string, string> = {};
   if (process.env.ANTHROPIC_API_KEY) {
     env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -82,7 +83,9 @@ export function agentEnv(harness?: AgentHarness): Record<string, string> {
     // `/v1/messages` directly, so the proxy must be exposed as `${proxy}/v1`.
     // Other harnesses (claude-code, codex) use our `/anthropic` passthrough.
     env.ANTHROPIC_BASE_URL =
-      harness === "opencode" ? `${proxyUrl}/v1` : `${proxyUrl}/anthropic`;
+      harness === AgentProvider.OpenCode
+        ? `${proxyUrl}/v1`
+        : `${proxyUrl}/anthropic`;
     env.OPENAI_BASE_URL = proxyUrl;
   }
   return env;
@@ -101,7 +104,7 @@ function buildOptions<P extends SupportedProvider>(
     tags: { app: "agentbox-demo" },
   };
 
-  if (provider === "modal") {
+  if (provider === SandboxProvider.Modal) {
     return {
       ...base,
       image: imageFor(provider),
@@ -113,7 +116,7 @@ function buildOptions<P extends SupportedProvider>(
     } as SandboxOptions<P>;
   }
 
-  if (provider === "e2b") {
+  if (provider === SandboxProvider.E2B) {
     return {
       ...base,
       image: imageFor(provider),
@@ -121,7 +124,7 @@ function buildOptions<P extends SupportedProvider>(
     } as SandboxOptions<P>;
   }
 
-  if (provider === "daytona") {
+  if (provider === SandboxProvider.Daytona) {
     return {
       ...base,
       image: imageFor(provider),
@@ -129,7 +132,7 @@ function buildOptions<P extends SupportedProvider>(
     } as SandboxOptions<P>;
   }
 
-  if (provider === "vercel") {
+  if (provider === SandboxProvider.Vercel) {
     return {
       ...base,
       provider: {
