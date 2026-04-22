@@ -14,6 +14,11 @@ import {
   ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export interface SettingOption {
@@ -35,6 +40,7 @@ interface SettingPickerProps {
   options: SettingOption[];
   onValueChange: (value: string) => void;
   disabled?: boolean;
+  tooltip?: React.ReactNode;
 }
 
 export function SettingPicker({
@@ -44,31 +50,45 @@ export function SettingPicker({
   options,
   onValueChange,
   disabled,
+  tooltip,
 }: SettingPickerProps) {
   const [open, setOpen] = React.useState(false);
   const current = options.find((o) => o.value === value);
 
+  const triggerButton = (
+    <ModelSelectorTrigger
+      render={
+        <PromptInputButton
+          size="sm"
+          variant="ghost"
+          className="h-8 gap-1.5 px-2 text-xs"
+          disabled={disabled}
+        />
+      }
+    >
+      {current?.provider ? (
+        <ModelSelectorLogo provider={current.provider} className="size-3.5" />
+      ) : icon ? (
+        <span className="text-muted-foreground">{icon}</span>
+      ) : null}
+      <span className="text-foreground font-medium">
+        {current?.label ?? value}
+      </span>
+    </ModelSelectorTrigger>
+  );
+
   return (
     <ModelSelector open={open} onOpenChange={setOpen}>
-      <ModelSelectorTrigger
-        render={
-          <PromptInputButton
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1.5 px-2 text-xs"
-            disabled={disabled}
-          />
-        }
-      >
-        {current?.provider ? (
-          <ModelSelectorLogo provider={current.provider} className="size-3.5" />
-        ) : icon ? (
-          <span className="text-muted-foreground">{icon}</span>
-        ) : null}
-        <span className="text-foreground font-medium">
-          {current?.label ?? value}
-        </span>
-      </ModelSelectorTrigger>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            {triggerButton}
+          </TooltipTrigger>
+          <TooltipContent>{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : (
+        triggerButton
+      )}
       <ModelSelectorContent title={label} className="sm:max-w-md">
         <ModelSelectorList>
           <ModelSelectorEmpty>

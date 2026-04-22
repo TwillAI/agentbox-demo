@@ -553,6 +553,7 @@ function SandboxHarnessBar({
       <SettingPicker
         icon={<Boxes className="size-3.5" />}
         label="Sandbox"
+        tooltip="Sandbox provider"
         value={sandboxProvider}
         onValueChange={(v) => setSandboxProvider(v as SandboxProviderName)}
         disabled={disabled}
@@ -564,6 +565,7 @@ function SandboxHarnessBar({
       <SettingPicker
         icon={<Bot className="size-3.5" />}
         label="Harness"
+        tooltip="Harness provider"
         value={harness}
         onValueChange={(v) => setHarness(v as HarnessName)}
         disabled={disabled}
