@@ -51,6 +51,7 @@ import {
   QueueSectionTrigger,
 } from "@/components/ai-elements/queue";
 import { SettingPicker } from "@/components/setting-picker";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -310,6 +311,7 @@ function Header({ showNewChat, onNewChat, disabled }: HeaderProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <a
             href="https://github.com/TwillAI/agentbox-demo"
             target="_blank"
