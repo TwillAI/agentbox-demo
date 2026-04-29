@@ -5,6 +5,7 @@ import {
   TriangleAlert,
   Boxes,
   Bot,
+  Brain,
   Plus,
   Star,
   Trash2,
@@ -55,9 +56,12 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { AgentJobLogsDisplay } from "@/components/agent-logs";
 import {
+  DEFAULT_REASONING,
   HARNESSES,
   HARNESS_LABELS,
   HARNESS_MODELS,
+  REASONING_LABELS,
+  REASONING_LEVELS,
   SANDBOX_LABELS,
   SUPPORTED_SANDBOXES,
   defaultModelFor,
@@ -65,7 +69,7 @@ import {
   type HarnessName,
 } from "@/lib/harness-catalog";
 import { AgentProvider, SandboxProvider } from "agentbox-sdk/enums";
-import type { SandboxProviderName } from "agentbox-sdk";
+import type { AgentReasoningEffort, SandboxProviderName } from "agentbox-sdk";
 import {
   useAgentChat,
   type ChatMessage,
@@ -75,6 +79,19 @@ import { cn } from "@/lib/utils";
 
 type ChatStatus = React.ComponentProps<typeof PromptInputSubmit>["status"];
 
+// Sentinel for "let the provider use its own default". The picker value is
+// always a string for the underlying combobox; we map it back to
+// `AgentReasoningEffort | undefined` at the call site.
+const REASONING_DEFAULT_VALUE = "default";
+
+type ReasoningSelection = AgentReasoningEffort | typeof REASONING_DEFAULT_VALUE;
+
+function reasoningToEffort(
+  value: ReasoningSelection,
+): AgentReasoningEffort | undefined {
+  return value === REASONING_DEFAULT_VALUE ? undefined : value;
+}
+
 export default function HomePage() {
   const [sandboxProvider, setSandboxProvider] =
     React.useState<SandboxProviderName>(SandboxProvider.Vercel);
@@ -83,6 +100,9 @@ export default function HomePage() {
   );
   const [model, setModel] = React.useState<string>(
     defaultModelFor(AgentProvider.ClaudeCode),
+  );
+  const [reasoning, setReasoning] = React.useState<ReasoningSelection>(
+    DEFAULT_REASONING[AgentProvider.ClaudeCode] ?? REASONING_DEFAULT_VALUE,
   );
   const [warmupState, setWarmupState] = React.useState<
     "idle" | "warming" | "ready" | "error"
@@ -99,6 +119,12 @@ export default function HomePage() {
       setModel(defaultModelFor(harness));
     }
   }, [harness, model]);
+
+  // Reset reasoning to the harness's default when switching harnesses so we
+  // don't keep an `xhigh` selection alive on a model that doesn't expose it.
+  React.useEffect(() => {
+    setReasoning(DEFAULT_REASONING[harness] ?? REASONING_DEFAULT_VALUE);
+  }, [harness]);
 
   // Warm up selected sandbox on mount and whenever it changes.
   // Keep the screen blank ("idle") until either the request resolves or
@@ -172,9 +198,16 @@ export default function HomePage() {
           filename: f.filename,
         }));
       if (!text && files.length === 0) return;
-      await enqueue({ input: text, harness, model, sandboxProvider, files });
+      await enqueue({
+        input: text,
+        harness,
+        model,
+        reasoning: reasoningToEffort(reasoning),
+        sandboxProvider,
+        files,
+      });
     },
-    [harness, model, sandboxProvider, enqueue],
+    [harness, model, reasoning, sandboxProvider, enqueue],
   );
 
   const status: ChatStatus = isRunning ? "streaming" : undefined;
@@ -188,6 +221,8 @@ export default function HomePage() {
       harness={harness}
       model={model}
       setModel={setModel}
+      reasoning={reasoning}
+      setReasoning={setReasoning}
       placeholder={
         isRunning
           ? "Queue a follow-up message..."
@@ -416,6 +451,8 @@ interface PromptInputCardProps {
   harness: HarnessName;
   model: string;
   setModel: (value: string) => void;
+  reasoning: ReasoningSelection;
+  setReasoning: (value: ReasoningSelection) => void;
   placeholder: string;
   disabled?: boolean;
 }
@@ -428,6 +465,8 @@ function PromptInputCard({
   harness,
   model,
   setModel,
+  reasoning,
+  setReasoning,
   placeholder,
   disabled,
 }: PromptInputCardProps) {
@@ -468,6 +507,20 @@ function PromptInputCard({
               label: m,
               provider: providerForModel(harness, m),
             }))}
+          />
+          <SettingPicker
+            icon={<Brain className="size-3.5" />}
+            label="Reasoning"
+            tooltip="Reasoning effort"
+            value={reasoning}
+            onValueChange={(v) => setReasoning(v as ReasoningSelection)}
+            options={[
+              { value: REASONING_DEFAULT_VALUE, label: "Default" },
+              ...REASONING_LEVELS.map((level) => ({
+                value: level,
+                label: REASONING_LABELS[level],
+              })),
+            ]}
           />
         </PromptInputTools>
         <PromptInputSubmit

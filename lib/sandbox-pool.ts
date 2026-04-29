@@ -79,15 +79,14 @@ export function agentEnv(harness?: AgentProviderName): Record<string, string> {
   }
   const proxyUrl = process.env.LLM_PROXY_URL?.replace(/\/+$/, "");
   if (proxyUrl) {
-    // opencode expects the Anthropic base URL to point at a root that hosts
-    // `/v1/messages` directly, so the proxy must be exposed as `${proxy}/v1`.
-    // Other harnesses (claude-code, codex) use our `/anthropic` passthrough.
     env.ANTHROPIC_BASE_URL =
       harness === AgentProvider.OpenCode
-        ? `${proxyUrl}/v1`
+        ? `${proxyUrl}`
         : `${proxyUrl}/anthropic`;
     env.OPENAI_BASE_URL = proxyUrl;
   }
+  console.log("\n\nenv", env);
+
   return env;
 }
 
@@ -187,7 +186,11 @@ export async function getSandbox(
       provider as SandboxProviderName,
       options as SandboxOptions,
     );
-    await sandbox.run(["true"], { timeoutMs: 120_000 });
+    // Explicit provisioning: the SDK no longer auto-provisions on the
+    // first `run` / `gitClone` call. Doing it here pulls the cost into
+    // pool boot and lets `isSandboxHealthy` keep doing its lightweight
+    // `["true"]` health check on subsequent attaches.
+    await sandbox.findOrProvision();
     pool.set(provider, { sandbox, createdAt: Date.now() });
     return sandbox;
   })();

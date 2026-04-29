@@ -21,19 +21,25 @@ import { registerRun, unregisterRun } from "@/lib/run-registry";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const REASONING_LEVELS = ["low", "medium", "high", "xhigh"] as const;
+
 const bodySchema = z
   .object({
     sandboxProvider: z.enum(SUPPORTED_SANDBOXES as [string, ...string[]]),
     harness: z.enum(HARNESSES as [string, ...string[]]),
     model: z.string().min(1),
+    reasoning: z.enum(REASONING_LEVELS).optional(),
     input: z.string().max(16_000).default(""),
     files: z.array(filePartSchema).max(10).optional(),
     resumeSessionId: z.string().min(1).optional(),
   })
-  .refine((data) => data.input.trim().length > 0 || (data.files?.length ?? 0) > 0, {
-    message: "Provide input text or at least one file.",
-    path: ["input"],
-  });
+  .refine(
+    (data) => data.input.trim().length > 0 || (data.files?.length ?? 0) > 0,
+    {
+      message: "Provide input text or at least one file.",
+      path: ["input"],
+    },
+  );
 
 function writeLine(
   controller: ReadableStreamDefaultController<Uint8Array>,
@@ -54,8 +60,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const { sandboxProvider, harness, model, input, files, resumeSessionId } =
-    parsed;
+  const {
+    sandboxProvider,
+    harness,
+    model,
+    reasoning,
+    input,
+    files,
+    resumeSessionId,
+  } = parsed;
 
   if (!HARNESS_MODELS[harness as AgentProviderName].includes(model)) {
     return Response.json(
@@ -73,16 +86,21 @@ export async function POST(req: Request) {
       let registeredRunId: string | null = null;
       try {
         const sandbox = await getSandbox(sandboxProvider as SupportedProvider);
-
         const agent = new Agent(harness as AgentProviderName, {
           sandbox,
           cwd: "/workspace",
           approvalMode: "auto",
           env: agentEnv(harness as AgentProviderName),
+          // provider: { supportsWebsockets: false },
         });
+
+        if (!resumeSessionId) {
+          await agent.setup();
+        }
 
         const run = agent.stream({
           model,
+          reasoning,
           input: buildAgentInput(input, files),
           resumeSessionId,
         });

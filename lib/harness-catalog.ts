@@ -1,7 +1,39 @@
 import { AgentProvider, SandboxProvider } from "agentbox-sdk/enums";
-import type { AgentProviderName, SandboxProviderName } from "agentbox-sdk";
+import type {
+  AgentProviderName,
+  AgentReasoningEffort,
+  SandboxProviderName,
+} from "agentbox-sdk";
 
 export type HarnessName = AgentProviderName;
+
+export const REASONING_LEVELS: AgentReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+export const REASONING_LABELS: Record<AgentReasoningEffort, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+};
+
+/**
+ * Default reasoning effort per harness. The selector starts here unless the
+ * user changes it. `null` means "let the provider decide" — we omit the
+ * `reasoning` field from `agent.stream()` in that case.
+ */
+export const DEFAULT_REASONING: Record<
+  HarnessName,
+  AgentReasoningEffort | null
+> = {
+  [AgentProvider.ClaudeCode]: null,
+  [AgentProvider.OpenCode]: null,
+  [AgentProvider.Codex]: "medium",
+};
 
 export const HARNESSES: HarnessName[] = [
   AgentProvider.ClaudeCode,

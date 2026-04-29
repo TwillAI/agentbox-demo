@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import type { HarnessName } from "@/lib/harness-catalog";
-import type { SandboxProviderName } from "agentbox-sdk";
+import type { AgentReasoningEffort, SandboxProviderName } from "agentbox-sdk";
+import { ProviderLogAssembler } from "agentbox-sdk/events";
 
 export type ChatRole = "user" | "assistant";
 
@@ -38,6 +39,7 @@ interface SendArgs {
   harness: HarnessName;
   model: string;
   sandboxProvider: SandboxProviderName;
+  reasoning?: AgentReasoningEffort;
   files?: ChatFile[];
 }
 
@@ -76,9 +78,23 @@ export function useAgentChat() {
     model: string;
     sandboxProvider: SandboxProviderName;
   } | null>(null);
+  // Provider-aware log assembler. The SDK ships this so demos and apps don't
+  // have to re-implement delta-to-snapshot logic for codex/opencode. Raw
+  // events from the wire flow through `process()` and become "updated"
+  // snapshots that the display components consume directly.
+  const assemblerRef = React.useRef<ProviderLogAssembler>(
+    new ProviderLogAssembler(),
+  );
 
   const send = React.useCallback(
-    async ({ input, harness, model, sandboxProvider, files }: SendArgs) => {
+    async ({
+      input,
+      harness,
+      model,
+      sandboxProvider,
+      reasoning,
+      files,
+    }: SendArgs) => {
       if (isRunning) return;
 
       const userMessage: ChatMessage = {
@@ -116,6 +132,7 @@ export function useAgentChat() {
             sandboxProvider,
             harness,
             model,
+            reasoning,
             input,
             files,
             resumeSessionId: sessionIdRef.current ?? undefined,
@@ -180,9 +197,14 @@ export function useAgentChat() {
             } else if (payload.type === "raw" && payload.event) {
               const targetId =
                 activeAssistantIdRef.current ?? assistantMessage.id;
+              const snapshots = assemblerRef.current.process(
+                harness,
+                payload.event,
+              );
+              if (snapshots.length === 0) continue;
               setMessages((prev) =>
                 updateMessage(prev, targetId, (m) => ({
-                  events: [...m.events, payload.event],
+                  events: [...m.events, ...snapshots],
                   status: "streaming",
                 })),
               );
@@ -399,6 +421,7 @@ export function useAgentChat() {
     runIdRef.current = null;
     activeAssistantIdRef.current = null;
     runContextRef.current = null;
+    assemblerRef.current = new ProviderLogAssembler();
   }, [isRunning]);
 
   return {

@@ -673,26 +673,80 @@ function handleItemUpdated(
   const itemId =
     typeof item.id === "string" ? item.id : `${item.type ?? "item"}-${index}`;
 
-  if (item.type === "todoList") {
-    const items = (item.items as CodexTodoItem[] | undefined) || [];
-    const previous = ctx.todoMap.get(itemId);
-    const nextStatus = determineTodoEntryStatus(
-      item.status,
-      items,
-      previous?.status,
-    );
-    const entry: TodosEntry = {
-      id: `${itemId}-updated-${index}`,
-      kind: "todos",
-      items,
-      status: nextStatus,
-    };
-    ctx.entries.push(entry);
-    ctx.todoMap.set(itemId, entry);
-    return;
-  }
+  // The SDK's ProviderLogAssembler folds delta notifications
+  // (`item/agentMessage/delta`, `item/reasoning/*Delta`,
+  // `item/commandExecution/outputDelta`) into synthesized `item/updated`
+  // snapshots whose `item` field carries the cumulative text/output. Mirror
+  // the per-type handlers below so streamed content keeps growing in the
+  // UI between `item/started` and `item/completed`.
+  switch (item.type) {
+    case "agentMessage": {
+      const text = typeof item.text === "string" ? item.text : "";
+      const existing = ctx.messageMap.get(itemId);
+      if (existing) {
+        existing.text = text;
+      } else if (text) {
+        const entry: MessageEntry = {
+          id: itemId,
+          kind: "message",
+          role: "assistant",
+          text,
+        };
+        ctx.entries.push(entry);
+        ctx.messageMap.set(itemId, entry);
+      }
+      return;
+    }
 
-  // Most other item types only stream deltas; no update handling needed here.
+    case "reasoning": {
+      const text = extractReasoningText(item);
+      const existing = ctx.reasoningMap.get(itemId);
+      if (existing) {
+        if (text) existing.text = text;
+      } else if (text) {
+        const entry: ReasoningEntry = {
+          id: itemId,
+          kind: "reasoning",
+          text,
+        };
+        ctx.entries.push(entry);
+        ctx.reasoningMap.set(itemId, entry);
+      }
+      return;
+    }
+
+    case "commandExecution": {
+      const existing = ctx.toolMap.get(itemId);
+      if (existing && existing.kind === "command") {
+        if (typeof item.aggregatedOutput === "string") {
+          existing.output = item.aggregatedOutput;
+        }
+      }
+      return;
+    }
+
+    case "todoList": {
+      const items = (item.items as CodexTodoItem[] | undefined) || [];
+      const previous = ctx.todoMap.get(itemId);
+      const nextStatus = determineTodoEntryStatus(
+        item.status,
+        items,
+        previous?.status,
+      );
+      const entry: TodosEntry = {
+        id: `${itemId}-updated-${index}`,
+        kind: "todos",
+        items,
+        status: nextStatus,
+      };
+      ctx.entries.push(entry);
+      ctx.todoMap.set(itemId, entry);
+      return;
+    }
+
+    default:
+      return;
+  }
 }
 
 function handleAgentMessageDelta(

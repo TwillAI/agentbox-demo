@@ -75,6 +75,8 @@ async function runStep(label, command, options = {}) {
 let cleanupOnExit = true;
 
 try {
+  await sandbox.findOrProvision();
+
   console.log("Booting Vercel sandbox (node24, this may take ~30-60s)...");
   await runStep("health check", "true", { timeoutMs: ms("5m") });
 
@@ -83,7 +85,7 @@ try {
   // passwordless sudo configured.
   await runStep(
     "install harness CLIs",
-    "sudo npm install -g pnpm @anthropic-ai/claude-code opencode-ai @openai/codex",
+    "sudo npm install -g pnpm @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk opencode-ai @openai/codex",
     { timeoutMs: ms("20m") },
   );
 
