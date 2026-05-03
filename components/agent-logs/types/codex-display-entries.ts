@@ -123,6 +123,7 @@ const IGNORED_METHODS = new Set<string>([
   "turn/plan/updated",
   "rawResponseItem/completed",
   "serverRequest/resolved",
+  "remoteControl/status/changed",
 ]);
 
 function normalizeArguments(value: unknown): Record<string, unknown> | null {

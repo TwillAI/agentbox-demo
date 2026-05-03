@@ -81,11 +81,10 @@ export function agentEnv(harness?: AgentProviderName): Record<string, string> {
   if (proxyUrl) {
     env.ANTHROPIC_BASE_URL =
       harness === AgentProvider.OpenCode
-        ? `${proxyUrl}`
+        ? `${proxyUrl}/v1`
         : `${proxyUrl}/anthropic`;
     env.OPENAI_BASE_URL = proxyUrl;
   }
-  console.log("\n\nenv", env);
 
   return env;
 }

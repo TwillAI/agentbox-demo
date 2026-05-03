@@ -45,11 +45,48 @@ export const ClaudeEventsDisplay: React.FC<Props> = ({
   showLast = false,
   className,
 }) => {
+  // The SDK's ClaudeCodeLogAssembler folds `stream_event` deltas into
+  // `{ type: "message.updated", messageId, message }` snapshots. Convert each
+  // unique messageId to a virtual `assistant` event in original position so
+  // the existing display logic renders one growing bubble per turn instead of
+  // a fresh bubble per delta.
+  const normalizedEvents = useMemo<ClaudeCodeEvent[]>(() => {
+    if (!events?.length) return [];
+    const out: ClaudeCodeEvent[] = [];
+    const messageIdToIndex = new Map<string, number>();
+    for (const event of events) {
+      const ev = event as unknown as Record<string, unknown>;
+      if (
+        ev.type === "message.updated" &&
+        typeof ev.messageId === "string" &&
+        ev.message &&
+        typeof ev.message === "object"
+      ) {
+        const messageId = ev.messageId as string;
+        const synthetic = {
+          type: "assistant",
+          parent_tool_use_id: null,
+          message: ev.message,
+        } as unknown as ClaudeCodeEvent;
+        const existingIdx = messageIdToIndex.get(messageId);
+        if (existingIdx !== undefined) {
+          out[existingIdx] = synthetic;
+        } else {
+          messageIdToIndex.set(messageId, out.length);
+          out.push(synthetic);
+        }
+        continue;
+      }
+      out.push(event);
+    }
+    return out;
+  }, [events]);
+
   // Build tool calls map with results and parent-child relationships
   const toolCalls = useMemo(() => {
     const calls = new Map<string, ToolCall>();
 
-    const logs = events || [];
+    const logs = normalizedEvents;
 
     // First pass: collect all tool calls with parent info
     for (const log of logs) {
@@ -143,7 +180,7 @@ export const ClaudeEventsDisplay: React.FC<Props> = ({
     });
 
     return calls;
-  }, [events]);
+  }, [normalizedEvents]);
 
   // Track tools the user has manually collapsed so we don't re-expand them
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
@@ -197,7 +234,7 @@ export const ClaudeEventsDisplay: React.FC<Props> = ({
     let currentToolIds: string[] = [];
 
     // Filter out "result" type entries first
-    const logs = (events || []).filter((log) => log.type !== "result");
+    const logs = normalizedEvents.filter((log) => log.type !== "result");
 
     const flushToolGroup = () => {
       if (currentToolGroup.length === 0) return;
@@ -268,7 +305,7 @@ export const ClaudeEventsDisplay: React.FC<Props> = ({
     flushToolGroup();
 
     return groups;
-  }, [events]);
+  }, [normalizedEvents]);
 
   const toggleTool = useCallback((toolId: string) => {
     setExpandedTools((prev) => {

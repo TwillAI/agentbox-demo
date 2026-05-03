@@ -80,12 +80,14 @@ try {
   console.log("Booting Vercel sandbox (node24, this may take ~30-60s)...");
   await runStep("health check", "true", { timeoutMs: ms("5m") });
 
-  // The default Vercel sandbox runs as the non-root `vercel-sandbox` user,
-  // so global npm installs need sudo. Vercel sandboxes ship with
-  // passwordless sudo configured.
+  // Install as the non-root `vercel-sandbox` user so packages land in the
+  // user's npm prefix (~/.global/npm/lib/node_modules). The claude-code
+  // daemon resolves `npm root -g` at runtime under this same user, so a
+  // sudo/root-prefix install would leave the daemon unable to find
+  // `@anthropic-ai/claude-agent-sdk`.
   await runStep(
     "install harness CLIs",
-    "sudo npm install -g pnpm @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk opencode-ai @openai/codex",
+    "npm install -g pnpm @anthropic-ai/claude-code @anthropic-ai/claude-agent-sdk opencode-ai @openai/codex",
     { timeoutMs: ms("20m") },
   );
 
